@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+.sf-auth.json
+.sf-auth.lock
+.DS_Store
+.daily-outreach-seen.json

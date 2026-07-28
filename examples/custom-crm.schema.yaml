@@ -1,0 +1,68 @@
+objects:
+  - apiName: Project
+    label: Project
+    pluralLabel: Projects
+    description: Example CRM parent object created by salesforce-mcp
+    deploymentStatus: Deployed
+    sharingModel: ReadWrite
+    enableActivities: true
+    enableReports: true
+    enableSearch: true
+    nameField:
+      label: Project Number
+      type: AutoNumber
+      displayFormat: PROJ-{0000}
+    fields:
+      - apiName: Stage
+        label: Stage
+        type: Picklist
+        valueSet:
+          restricted: true
+          sorted: false
+          values:
+            - fullName: Prospect
+              default: true
+            - fullName: Qualified
+            - fullName: ClosedWon
+      - apiName: Budget
+        label: Budget
+        type: Number
+        precision: 16
+        scale: 2
+      - apiName: Budget_Band
+        label: Budget Band
+        type: Formula
+        formula: 'IF(Budget__c >= 100000, "Enterprise", "Standard")'
+        length: 40
+      - apiName: Total_Task_Estimate
+        label: Total Task Estimate
+        type: RollupSummary
+        summaryOperation: Sum
+        summaryForeignKey: Project__c
+        summarizedField: Estimated_Hours__c
+  - apiName: Project_Task
+    label: Project Task
+    pluralLabel: Project Tasks
+    description: Child object used to demonstrate master-detail and roll-up summary support
+    deploymentStatus: Deployed
+    sharingModel: ControlledByParent
+    enableActivities: true
+    enableReports: true
+    enableSearch: true
+    nameField:
+      label: Task Number
+      type: AutoNumber
+      displayFormat: TASK-{0000}
+    fields:
+      - apiName: Project
+        label: Project
+        type: MasterDetail
+        referenceTo: Project__c
+        relationshipLabel: Project Tasks
+        relationshipName: ProjectTasks
+        writeRequiresMasterRead: false
+      - apiName: Estimated_Hours
+        label: Estimated Hours
+        type: Number
+        precision: 8
+        scale: 2

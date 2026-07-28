@@ -1,0 +1,38 @@
+{
+  "name": "salesforce-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local stdio MCP server for Salesforce REST, Tooling, and Metadata APIs.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "salesforce-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev:serve": "tsx src/index.ts serve",
+    "dev:login": "tsx src/index.ts login",
+    "dev:apply-schema": "tsx src/index.ts apply-schema",
+    "daily-outreach": "node scripts/daily-outreach-queue.cjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^16.6.1",
+    "js-yaml": "^4.1.0",
+    "jsforce": "^3.10.19",
+    "jose": "^6.1.0",
+    "open": "^10.2.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^24.0.15",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

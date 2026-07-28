@@ -1,0 +1,518 @@
+objects:
+  - apiName: LinkedIn_Outreach
+    label: LinkedIn Outreach
+    pluralLabel: LinkedIn Outreach
+    description: Tracks LinkedIn Sales Navigator connection requests, messages, InMails, replies, and meeting outcomes.
+    deploymentStatus: Deployed
+    sharingModel: ReadWrite
+    enableActivities: true
+    enableReports: true
+    enableSearch: true
+    nameField:
+      label: Outreach Number
+      type: AutoNumber
+      displayFormat: LIO-{00000}
+    fields:
+      - apiName: Lead
+        label: Lead
+        type: Lookup
+        referenceTo: Lead
+        relationshipLabel: LinkedIn Outreach
+        relationshipName: LinkedIn_Outreach_Lead
+        deleteConstraint: SetNull
+      - apiName: Contact
+        label: Contact
+        type: Lookup
+        referenceTo: Contact
+        relationshipLabel: LinkedIn Outreach
+        relationshipName: LinkedIn_Outreach_Contact
+        deleteConstraint: SetNull
+      - apiName: Account
+        label: Account
+        type: Lookup
+        referenceTo: Account
+        relationshipLabel: LinkedIn Outreach
+        relationshipName: LinkedIn_Outreach_Account
+        deleteConstraint: SetNull
+      - apiName: Outreach_Date
+        label: Outreach Date
+        type: Date
+        required: true
+      - apiName: Activity_Type
+        label: Activity Type
+        type: Picklist
+        required: true
+        valueSet:
+          restricted: true
+          sorted: false
+          values:
+            - fullName: Connection Request
+            - fullName: Message
+            - fullName: InMail
+            - fullName: Reply
+            - fullName: Comment
+            - fullName: Profile View
+            - fullName: Meeting Requested
+            - fullName: Meeting Booked
+            - fullName: Email Attempt
+            - fullName: Phone Call
+            - fullName: Voicemail
+            - fullName: Call Connected
+            - fullName: Other
+      - apiName: Channel
+        label: Channel
+        type: Picklist
+        required: true
+        valueSet:
+          restricted: true
+          sorted: false
+          values:
+            - fullName: Sales Navigator
+            - fullName: LinkedIn
+            - fullName: Email
+            - fullName: Phone
+            - fullName: Other
+      - apiName: Direction
+        label: Direction
+        type: Picklist
+        valueSet:
+          restricted: true
+          sorted: false
+          values:
+            - fullName: Outbound
+            - fullName: Inbound
+      - apiName: Outcome
+        label: Outcome
+        type: Picklist
+        valueSet:
+          restricted: true
+          sorted: false
+          values:
+            - fullName: Sent
+            - fullName: Accepted
+            - fullName: Replied
+            - fullName: Meeting Requested
+            - fullName: Meeting Booked
+            - fullName: No Response
+            - fullName: Left Voicemail
+            - fullName: Connected Live
+            - fullName: Email Bounced
+            - fullName: Not a Fit
+            - fullName: Nurture
+      - apiName: Message_Summary
+        label: Message Summary
+        type: LongTextArea
+        length: 32768
+        visibleLines: 5
+      - apiName: LinkedIn_Profile_URL
+        label: LinkedIn Profile URL
+        type: Url
+      - apiName: Sales_Navigator_URL
+        label: Sales Navigator URL
+        type: Url
+      - apiName: Source_List
+        label: Source List
+        type: Text
+        length: 255
+      - apiName: Campaign_Name
+        label: Campaign Name
+        type: Text
+        length: 255
+      - apiName: Meeting_Requested
+        label: Meeting Requested
+        type: Checkbox
+        defaultValue: "false"
+      - apiName: Follow_Up_Date
+        label: Follow-Up Date
+        type: Date
+
+fields:
+  - objectApiName: Lead
+    apiName: LinkedIn_Profile_URL
+    label: LinkedIn Profile URL
+    type: Url
+  - objectApiName: Lead
+    apiName: Sales_Navigator_URL
+    label: Sales Navigator URL
+    type: Url
+  - objectApiName: Lead
+    apiName: LinkedIn_Connection_Status
+    label: LinkedIn Connection Status
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Not Connected
+        - fullName: Requested
+        - fullName: Connected
+        - fullName: Replied
+        - fullName: Meeting Requested
+        - fullName: Meeting Booked
+        - fullName: Nurture
+        - fullName: Not a Fit
+  - objectApiName: Lead
+    apiName: LinkedIn_Last_Touch_Date
+    label: LinkedIn Last Touch Date
+    type: Date
+  - objectApiName: Lead
+    apiName: LinkedIn_Conversation_Stage
+    label: LinkedIn Conversation Stage
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Targeted
+        - fullName: Connection Sent
+        - fullName: Connected
+        - fullName: Conversation Started
+        - fullName: Discovery Requested
+        - fullName: Discovery Scheduled
+        - fullName: Converted
+        - fullName: Nurture
+        - fullName: Closed Out
+  - objectApiName: Lead
+    apiName: LinkedIn_Source_List
+    label: LinkedIn Source List
+    type: Text
+    length: 255
+  - objectApiName: Lead
+    apiName: Outreach_Channel
+    label: Outreach Channel
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: LinkedIn
+        - fullName: Email
+        - fullName: Phone
+        - fullName: Referral
+        - fullName: Event
+        - fullName: Other
+  - objectApiName: Lead
+    apiName: ICP_Fit_Score
+    label: ICP Fit Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Lead
+    apiName: ICP_Fit_Rationale
+    label: ICP Fit Rationale
+    type: LongTextArea
+    length: 32768
+    visibleLines: 4
+  - objectApiName: Lead
+    apiName: Persona_Fit_Score
+    label: Persona Fit Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Lead
+    apiName: Persona_Fit_Rationale
+    label: Persona Fit Rationale
+    type: LongTextArea
+    length: 32768
+    visibleLines: 4
+  - objectApiName: Lead
+    apiName: Relationship_Score
+    label: Relationship Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Lead
+    apiName: Response_Quality
+    label: Response Quality
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: No Response Yet
+        - fullName: Positive
+        - fullName: Neutral
+        - fullName: Negative
+        - fullName: Objection
+        - fullName: Referral
+        - fullName: Meeting Interest
+  - objectApiName: Lead
+    apiName: Next_Best_Action
+    label: Next Best Action
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Send LinkedIn Message
+        - fullName: Send Email
+        - fullName: Call
+        - fullName: Follow Up
+        - fullName: Schedule Meeting
+        - fullName: Research Account
+        - fullName: Nurture
+        - fullName: Disqualify
+  - objectApiName: Lead
+    apiName: Next_Action_Date
+    label: Next Action Date
+    type: Date
+  - objectApiName: Lead
+    apiName: AI_Outreach_Draft
+    label: AI Outreach Draft
+    type: LongTextArea
+    length: 32768
+    visibleLines: 6
+  - objectApiName: Lead
+    apiName: Last_AI_Review_Date
+    label: Last AI Review Date
+    type: Date
+
+  - objectApiName: Contact
+    apiName: LinkedIn_Profile_URL
+    label: LinkedIn Profile URL
+    type: Url
+  - objectApiName: Contact
+    apiName: Sales_Navigator_URL
+    label: Sales Navigator URL
+    type: Url
+  - objectApiName: Contact
+    apiName: LinkedIn_Connection_Status
+    label: LinkedIn Connection Status
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Not Connected
+        - fullName: Requested
+        - fullName: Connected
+        - fullName: Replied
+        - fullName: Meeting Requested
+        - fullName: Meeting Booked
+        - fullName: Nurture
+        - fullName: Not a Fit
+  - objectApiName: Contact
+    apiName: LinkedIn_Last_Touch_Date
+    label: LinkedIn Last Touch Date
+    type: Date
+  - objectApiName: Contact
+    apiName: LinkedIn_Conversation_Stage
+    label: LinkedIn Conversation Stage
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Targeted
+        - fullName: Connection Sent
+        - fullName: Connected
+        - fullName: Conversation Started
+        - fullName: Discovery Requested
+        - fullName: Discovery Scheduled
+        - fullName: Opportunity Created
+        - fullName: Nurture
+        - fullName: Closed Out
+  - objectApiName: Contact
+    apiName: LinkedIn_Source_List
+    label: LinkedIn Source List
+    type: Text
+    length: 255
+  - objectApiName: Contact
+    apiName: Outreach_Channel
+    label: Outreach Channel
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: LinkedIn
+        - fullName: Email
+        - fullName: Phone
+        - fullName: Referral
+        - fullName: Event
+        - fullName: Other
+  - objectApiName: Contact
+    apiName: ICP_Fit_Score
+    label: ICP Fit Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Contact
+    apiName: ICP_Fit_Rationale
+    label: ICP Fit Rationale
+    type: LongTextArea
+    length: 32768
+    visibleLines: 4
+  - objectApiName: Contact
+    apiName: Persona_Fit_Score
+    label: Persona Fit Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Contact
+    apiName: Persona_Fit_Rationale
+    label: Persona Fit Rationale
+    type: LongTextArea
+    length: 32768
+    visibleLines: 4
+  - objectApiName: Contact
+    apiName: Relationship_Score
+    label: Relationship Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Contact
+    apiName: Response_Quality
+    label: Response Quality
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: No Response Yet
+        - fullName: Positive
+        - fullName: Neutral
+        - fullName: Negative
+        - fullName: Objection
+        - fullName: Referral
+        - fullName: Meeting Interest
+  - objectApiName: Contact
+    apiName: Next_Best_Action
+    label: Next Best Action
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Send LinkedIn Message
+        - fullName: Send Email
+        - fullName: Call
+        - fullName: Follow Up
+        - fullName: Schedule Meeting
+        - fullName: Research Account
+        - fullName: Nurture
+        - fullName: Disqualify
+  - objectApiName: Contact
+    apiName: Next_Action_Date
+    label: Next Action Date
+    type: Date
+  - objectApiName: Contact
+    apiName: AI_Outreach_Draft
+    label: AI Outreach Draft
+    type: LongTextArea
+    length: 32768
+    visibleLines: 6
+  - objectApiName: Contact
+    apiName: Last_AI_Review_Date
+    label: Last AI Review Date
+    type: Date
+
+  - objectApiName: Account
+    apiName: Sales_Navigator_URL
+    label: Sales Navigator URL
+    type: Url
+  - objectApiName: Account
+    apiName: LinkedIn_Source_List
+    label: LinkedIn Source List
+    type: Text
+    length: 255
+  - objectApiName: Account
+    apiName: LinkedIn_Last_Touch_Date
+    label: LinkedIn Last Touch Date
+    type: Date
+  - objectApiName: Account
+    apiName: LinkedIn_Prospecting_Status
+    label: LinkedIn Prospecting Status
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Not Started
+        - fullName: Targeting Contacts
+        - fullName: Active Outreach
+        - fullName: Conversation Open
+        - fullName: Meeting Requested
+        - fullName: Meeting Booked
+        - fullName: Nurture
+        - fullName: Closed Out
+  - objectApiName: Account
+    apiName: Account_Intelligence
+    label: Account Intelligence
+    type: LongTextArea
+    length: 32768
+    visibleLines: 6
+  - objectApiName: Account
+    apiName: Account_ICP_Fit_Score
+    label: Account ICP Fit Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Account
+    apiName: Account_Relationship_Score
+    label: Account Relationship Score
+    type: Number
+    precision: 3
+    scale: 0
+  - objectApiName: Account
+    apiName: Next_Best_Action
+    label: Next Best Action
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Identify Stakeholders
+        - fullName: Send LinkedIn Message
+        - fullName: Send Email
+        - fullName: Call
+        - fullName: Follow Up
+        - fullName: Schedule Meeting
+        - fullName: Research Account
+        - fullName: Nurture
+        - fullName: Disqualify
+  - objectApiName: Account
+    apiName: Next_Action_Date
+    label: Next Action Date
+    type: Date
+  - objectApiName: Account
+    apiName: Last_AI_Review_Date
+    label: Last AI Review Date
+    type: Date
+
+  - objectApiName: LinkedIn_Outreach
+    apiName: Reply_Sentiment
+    label: Reply Sentiment
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Positive
+        - fullName: Neutral
+        - fullName: Negative
+        - fullName: Objection
+        - fullName: Referral
+        - fullName: Meeting Interest
+  - objectApiName: LinkedIn_Outreach
+    apiName: AI_Recommended_Next_Action
+    label: AI Recommended Next Action
+    type: Picklist
+    valueSet:
+      restricted: true
+      sorted: false
+      values:
+        - fullName: Send LinkedIn Message
+        - fullName: Send Email
+        - fullName: Call
+        - fullName: Follow Up
+        - fullName: Schedule Meeting
+        - fullName: Research Account
+        - fullName: Nurture
+        - fullName: Disqualify
+  - objectApiName: LinkedIn_Outreach
+    apiName: AI_Follow_Up_Draft
+    label: AI Follow-Up Draft
+    type: LongTextArea
+    length: 32768
+    visibleLines: 6
