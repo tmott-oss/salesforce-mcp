@@ -4,6 +4,8 @@ Local stdio MCP server for Salesforce using direct API access via `jsforce` and 
 
 New teammates should start here: [Welcome Mat](docs/welcome-mat.md).
 
+Slack delivery setup: [Slack Bot Delivery](docs/slack-delivery.md).
+
 It supports:
 
 - Salesforce OAuth Authorization Code + PKCE or JWT bearer auth

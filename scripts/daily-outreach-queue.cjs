@@ -12,6 +12,7 @@ for (const arg of process.argv.slice(2)) {
 const limit = Number(args.get("limit") || 10);
 const offset = Number(args.get("offset") || 0);
 const days = Number(args.get("days") || 180);
+const deliver = args.get("deliver") || "console";
 const remember = args.has("remember");
 const resetSeen = args.has("reset-seen");
 const markReview = args.has("mark-review");
@@ -30,6 +31,11 @@ const sender = {
   workContext:
     process.env.OUTREACH_SENDER_WORK_CONTEXT ||
     "customer intelligence and sales execution",
+};
+const slack = {
+  token: process.env.SLACK_BOT_TOKEN || "",
+  channelId: process.env.SLACK_CHANNEL_ID || "",
+  manualReviewLimit: Number(process.env.SLACK_MANUAL_REVIEW_LIMIT || 10),
 };
 
 function readAuth() {
@@ -503,7 +509,117 @@ async function findManualReviewField(conn) {
   return describe.fields.some((field) => field.name === manualReviewField && field.updateable);
 }
 
+function slackEscape(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function slackLink(url, label) {
+  return `<${url}|${slackEscape(label)}>`;
+}
+
+async function postSlackMessage({ text, threadTs }) {
+  if (!slack.token || !slack.channelId) {
+    throw new Error("Slack delivery requires SLACK_BOT_TOKEN and SLACK_CHANNEL_ID in .env.");
+  }
+
+  const response = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${slack.token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify({
+      channel: slack.channelId,
+      text,
+      mrkdwn: true,
+      unfurl_links: false,
+      unfurl_media: false,
+      ...(threadTs ? { thread_ts: threadTs } : {}),
+    }),
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    throw new Error(`Slack post failed: ${body.error || response.statusText}`);
+  }
+  return body;
+}
+
+function leadLinks(auth, lead) {
+  const links = [
+    slackLink(`${auth.instanceUrl}/lightning/r/Lead/${lead.Id}/view`, "Salesforce"),
+  ];
+  if (lead.Sales_Navigator_URL__c) links.push(slackLink(lead.Sales_Navigator_URL__c, "Sales Navigator"));
+  return links.join(" | ");
+}
+
+function formatSlackLead(item, index, auth) {
+  const { lead, scoring, classification, draft, personalization, activity } = item;
+  return [
+    `*${index + 1}. ${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")}`,
+    `*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Confidence:* ${personalization.confidence}`,
+    `*Angle:* ${slackEscape(draft.angle.label)}`,
+    `*Prior LinkedIn steps:* ${slackEscape(activity.map((task) => task.Subject).join(", ") || "none")}`,
+    `*Links:* ${leadLinks(auth, lead)}`,
+    `*Draft message:*`,
+    `>${slackEscape(draft.message)}`,
+  ].join("\n");
+}
+
+function formatSlackManualReview(item, auth) {
+  const { lead, scoring, classification, personalization } = item;
+  return `• *${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")} | Fit: ${scoring.fit} | Persona: ${classification.persona} | ${slackEscape(personalization.signal)} | ${leadLinks(auth, lead)}`;
+}
+
+async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, seenLeadIds, eligibleQueue, readyQueue, manualReviewQueue, queue }) {
+  const summary = [
+    `*Daily Sales Nav Outreach Queue*`,
+    `Sender: ${slackEscape(sender.name)}, ${slackEscape(sender.exactTitle)} at ${slackEscape(sender.company)}`,
+    `Owner: ${slackEscape(identity.display_name)}`,
+    `Window: Leads created since ${since}`,
+    `Candidates reviewed: ${leads.length}`,
+    `Already messaged in Salesforce: ${messagedLeadIds.size}`,
+    `Skipped from local seen list: ${seenLeadIds.size}`,
+    `Eligible remaining: ${eligibleQueue.length}`,
+    `Ready for review: ${readyQueue.length}`,
+    `Manual profile review required: ${manualReviewQueue.length}`,
+    `Posting ${queue.length} ready lead(s) in this thread.`,
+  ].join("\n");
+
+  const parent = await postSlackMessage({ text: summary });
+  for (const [index, item] of queue.entries()) {
+    await postSlackMessage({
+      text: formatSlackLead(item, index, auth),
+      threadTs: parent.ts,
+    });
+  }
+
+  if (manualReviewQueue.length) {
+    const visible = manualReviewQueue.slice(0, slack.manualReviewLimit);
+    const hiddenCount = manualReviewQueue.length - visible.length;
+    const manualText = [
+      `*Manual Profile Review Required*`,
+      `These low-confidence leads were not placed into the ready queue.`,
+      "",
+      ...visible.map((item) => formatSlackManualReview(item, auth)),
+      hiddenCount > 0 ? `• ...and ${hiddenCount} more` : "",
+    ].filter(Boolean).join("\n");
+    await postSlackMessage({ text: manualText, threadTs: parent.ts });
+  }
+
+  return parent;
+}
+
 async function main() {
+  if (!["console", "slack"].includes(deliver)) {
+    throw new Error(`Unsupported delivery target: ${deliver}. Use --deliver=console or --deliver=slack.`);
+  }
+  if (deliver === "slack" && (!slack.token || !slack.channelId)) {
+    throw new Error("Slack delivery requires SLACK_BOT_TOKEN and SLACK_CHANNEL_ID in .env.");
+  }
+
   const auth = readAuth();
   const conn = new jsforce.Connection({
     instanceUrl: auth.instanceUrl,
@@ -629,6 +745,7 @@ async function main() {
   console.log(`Manual profile review required: ${manualReviewQueue.length}`);
   console.log(`Offset: ${offset}`);
   console.log(`Recommended today: ${queue.length}`);
+  console.log(`Delivery: ${deliver}`);
   if (markReview && !canMarkManualReview) {
     console.log(`Manual review write-back skipped: Lead.${manualReviewField} does not exist yet.`);
   }
@@ -676,6 +793,23 @@ async function main() {
     if (manualReviewQueue.length > 15) {
       console.log(`- ...and ${manualReviewQueue.length - 15} more`);
     }
+    console.log("");
+  }
+
+  if (deliver === "slack") {
+    const post = await deliverToSlack({
+      auth,
+      identity,
+      since,
+      leads,
+      messagedLeadIds,
+      seenLeadIds,
+      eligibleQueue,
+      readyQueue,
+      manualReviewQueue,
+      queue,
+    });
+    console.log(`Posted Slack queue to channel ${slack.channelId} at thread ${post.ts}`);
     console.log("");
   }
 
