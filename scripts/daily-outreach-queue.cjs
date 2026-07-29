@@ -9,7 +9,7 @@ for (const arg of process.argv.slice(2)) {
   args.set(key.replace(/^--/, ""), value ?? "1");
 }
 
-const limit = Number(args.get("limit") || 10);
+const limit = Number(args.get("limit") || 5);
 const offset = Number(args.get("offset") || 0);
 const days = Number(args.get("days") || 180);
 const deliver = args.get("deliver") || "console";
@@ -520,7 +520,7 @@ function slackLink(url, label) {
   return `<${url}|${slackEscape(label)}>`;
 }
 
-async function postSlackMessage({ text, threadTs }) {
+async function postSlackMessage({ text, threadTs, blocks }) {
   if (!slack.token || !slack.channelId) {
     throw new Error("Slack delivery requires SLACK_BOT_TOKEN and SLACK_CHANNEL_ID in .env.");
   }
@@ -537,6 +537,7 @@ async function postSlackMessage({ text, threadTs }) {
       mrkdwn: true,
       unfurl_links: false,
       unfurl_media: false,
+      ...(blocks ? { blocks } : {}),
       ...(threadTs ? { thread_ts: threadTs } : {}),
     }),
   });
@@ -553,6 +554,94 @@ function leadLinks(auth, lead) {
   ];
   if (lead.Sales_Navigator_URL__c) links.push(slackLink(lead.Sales_Navigator_URL__c, "Sales Navigator"));
   return links.join(" | ");
+}
+
+function slackButtonText(text) {
+  return {
+    type: "plain_text",
+    text,
+    emoji: true,
+  };
+}
+
+function parentBlocks(summary, nextOffset) {
+  return [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: summary,
+      },
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: slackButtonText("Next 5"),
+          action_id: "outreach_next_batch",
+          value: JSON.stringify({ offset: nextOffset, limit: 5 }),
+        },
+      ],
+    },
+  ];
+}
+
+function leadBlocks(item, index, auth) {
+  const { lead, scoring, classification, draft, personalization, activity } = item;
+  const salesforceUrl = `${auth.instanceUrl}/lightning/r/Lead/${lead.Id}/view`;
+  const buttonElements = [
+    {
+      type: "button",
+      text: slackButtonText("Open Salesforce"),
+      url: salesforceUrl,
+      action_id: "open_salesforce",
+    },
+  ];
+  if (lead.Sales_Navigator_URL__c) {
+    buttonElements.push({
+      type: "button",
+      text: slackButtonText("Open Sales Nav"),
+      url: lead.Sales_Navigator_URL__c,
+      action_id: "open_sales_nav",
+    });
+  }
+  buttonElements.push(
+    {
+      type: "button",
+      text: slackButtonText("Mark Sent"),
+      action_id: "outreach_mark_sent",
+      value: JSON.stringify({ leadId: lead.Id, leadName: lead.Name }),
+      style: "primary",
+    },
+    {
+      type: "button",
+      text: slackButtonText("Needs Review"),
+      action_id: "outreach_needs_review",
+      value: JSON.stringify({ leadId: lead.Id, leadName: lead.Name }),
+    }
+  );
+
+  return [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${index + 1}. ${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")}\n*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Confidence:* ${personalization.confidence}\n*Angle:* ${slackEscape(draft.angle.label)}\n*Prior LinkedIn steps:* ${slackEscape(activity.map((task) => task.Subject).join(", ") || "none")}`,
+      },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Draft message:*\n>${slackEscape(draft.message)}`,
+      },
+    },
+    {
+      type: "actions",
+      elements: buttonElements,
+    },
+  ];
 }
 
 function formatSlackLead(item, index, auth) {
@@ -573,7 +662,7 @@ function formatSlackManualReview(item, auth) {
   return `• *${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")} | Fit: ${scoring.fit} | Persona: ${classification.persona} | ${slackEscape(personalization.signal)} | ${leadLinks(auth, lead)}`;
 }
 
-async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, seenLeadIds, eligibleQueue, readyQueue, manualReviewQueue, queue }) {
+async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, seenLeadIds, eligibleQueue, readyQueue, manualReviewQueue, queue, nextOffset }) {
   const summary = [
     `*Daily Sales Nav Outreach Queue*`,
     `Sender: ${slackEscape(sender.name)}, ${slackEscape(sender.exactTitle)} at ${slackEscape(sender.company)}`,
@@ -588,10 +677,14 @@ async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, s
     `Posting ${queue.length} ready lead(s) in this thread.`,
   ].join("\n");
 
-  const parent = await postSlackMessage({ text: summary });
+  const parent = await postSlackMessage({
+    text: summary,
+    blocks: parentBlocks(summary, nextOffset),
+  });
   for (const [index, item] of queue.entries()) {
     await postSlackMessage({
       text: formatSlackLead(item, index, auth),
+      blocks: leadBlocks(item, index, auth),
       threadTs: parent.ts,
     });
   }
@@ -808,6 +901,7 @@ async function main() {
       readyQueue,
       manualReviewQueue,
       queue,
+      nextOffset: offset + limit,
     });
     console.log(`Posted Slack queue to channel ${slack.channelId} at thread ${post.ts}`);
     console.log("");

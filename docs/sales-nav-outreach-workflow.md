@@ -11,7 +11,7 @@ This workflow replaces the old copy-profile-to-ChatGPT loop with a Salesforce-ba
 
 ```bash
 cd "/Users/troymott/Documents/New project/salesforce-mcp"
-npm run daily-outreach -- --limit=8
+npm run daily-outreach -- --limit=5
 ```
 
 5. Review the recommended leads, persona classification, and draft messages.

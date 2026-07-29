@@ -51,6 +51,7 @@ Optional Slack delivery:
 
 ```env
 SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
 SLACK_CHANNEL_ID=C0123456789
 SLACK_MANUAL_REVIEW_LIMIT=10
 ```
@@ -135,25 +136,25 @@ Use this only after Sales Navigator has synced saved leads into Salesforce.
 Terminal delivery:
 
 ```bash
-npm run daily-outreach -- --limit=8
+npm run daily-outreach -- --limit=5
 ```
 
 Slack delivery:
 
 ```bash
-npm run daily-outreach -- --limit=8 --deliver=slack
+npm run daily-outreach -- --limit=5 --deliver=slack
 ```
 
 For a fresh next batch:
 
 ```bash
-npm run daily-outreach -- --limit=8 --offset=8
+npm run daily-outreach -- --limit=5 --offset=5
 ```
 
 To avoid seeing the same batch again:
 
 ```bash
-npm run daily-outreach -- --limit=8 --remember
+npm run daily-outreach -- --limit=5 --remember
 ```
 
 The output has two groups:
