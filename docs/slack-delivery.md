@@ -43,7 +43,7 @@ Add these to `.env`:
 SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
 SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
 SLACK_CHANNEL_ID=C0123456789
-SLACK_MANUAL_REVIEW_LIMIT=10
+SLACK_MANUAL_REVIEW_LIMIT=0
 ```
 
 Never commit `.env`.
@@ -68,7 +68,7 @@ The script posts:
 
 - One parent summary message in the configured channel.
 - One threaded reply per ready-for-review lead.
-- A final threaded manual-review summary for Low-confidence leads.
+- A manual-review count in the parent summary.
 - Buttons for opening Salesforce, opening Sales Navigator, marking sent, flagging review, and generating the next 5 leads.
 
 Each ready lead includes:
@@ -80,6 +80,8 @@ Each ready lead includes:
 - Salesforce link
 - Sales Navigator link when available
 - Pre-written LinkedIn message
+
+By default, Low-confidence manual-review records are not listed in Slack because they can clutter the channel quickly. To post a limited manual-review list anyway, set `SLACK_MANUAL_REVIEW_LIMIT` above `0`.
 
 ## Button Listener
 

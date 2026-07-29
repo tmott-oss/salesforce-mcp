@@ -35,7 +35,7 @@ const sender = {
 const slack = {
   token: process.env.SLACK_BOT_TOKEN || "",
   channelId: process.env.SLACK_CHANNEL_ID || "",
-  manualReviewLimit: Number(process.env.SLACK_MANUAL_REVIEW_LIMIT || 10),
+  manualReviewLimit: Number(process.env.SLACK_MANUAL_REVIEW_LIMIT || 0),
 };
 
 function readAuth() {
@@ -689,7 +689,7 @@ async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, s
     });
   }
 
-  if (manualReviewQueue.length) {
+  if (manualReviewQueue.length && slack.manualReviewLimit > 0) {
     const visible = manualReviewQueue.slice(0, slack.manualReviewLimit);
     const hiddenCount = manualReviewQueue.length - visible.length;
     const manualText = [
