@@ -359,6 +359,21 @@ function outreachAngle(lead, classification, style) {
   };
 }
 
+function credibilityLine(lead, focus) {
+  const seed = [...(lead.Id || lead.Name || "")].reduce(
+    (sum, char) => sum + char.charCodeAt(0),
+    0
+  );
+  const variants = [
+    `A significant part of my work as VP of AI Operations at Halosight is focused on ${focus}.`,
+    `That problem sits directly within the work I lead at Halosight around ${focus}.`,
+    `Much of my work at Halosight focuses on ${focus}.`,
+    `In my role leading AI operations at Halosight, I spend a lot of time thinking about ${focus}.`,
+    `That challenge is closely connected to the work I lead around customer intelligence and sales execution.`,
+  ];
+  return variants[seed % variants.length];
+}
+
 function draftMessage(lead, classification, style, profile) {
   const { first, title, company } = messageContext(lead);
   const lowerTitle = title.toLowerCase();
@@ -376,7 +391,7 @@ function draftMessage(lead, classification, style, profile) {
   if (classification.persona === "Executive Sponsor") {
     return {
       angle,
-      message: `Hi ${first}, one leadership problem I keep coming back to is how companies create consistent execution without slowing good teams down. As organizations grow, the customer context behind decisions, risks, and commitments often gets scattered across conversations and individual memory. I have been focused on ways to preserve that context more automatically so leaders can see what is changing without adding more reporting work. I would be interested in how you think about balancing consistency and speed at ${company}.`,
+      message: `Hi ${first}, one leadership problem I keep coming back to is how companies create consistent execution without slowing good teams down. As organizations grow, the customer context behind decisions, risks, and commitments often gets scattered across conversations and individual memory. ${credibilityLine(lead, "preserving that context so leaders can see what is changing without adding more reporting work")} I would be interested in how you think about balancing consistency and speed at ${company}.`,
       withheld: false,
       reason: angle.fit,
     };
@@ -386,7 +401,7 @@ function draftMessage(lead, classification, style, profile) {
     if (style === "Respectful contrarian") {
       return {
         angle,
-        message: `Hi ${first}, I am becoming convinced that AI itself is not the advantage in customer-facing organizations. The harder problem is turning conversations, decisions, and follow-through into useful operating context without creating more work for the teams doing the work. I have been focused on how organizations can capture that context more naturally and make it usable across sales and operations. Do you see adoption risk showing up more as a technology issue or a workflow issue?`,
+        message: `Hi ${first}, I am becoming convinced that AI itself is not the advantage in customer-facing organizations. The harder problem is turning conversations, decisions, and follow-through into useful operating context without creating more work for the teams doing the work. ${credibilityLine(lead, "helping organizations capture that context more naturally and make it usable across sales and operations")} Do you see adoption risk showing up more as a technology issue or a workflow issue?`,
         withheld: false,
         reason: angle.fit,
       };
@@ -394,7 +409,7 @@ function draftMessage(lead, classification, style, profile) {
 
     return {
       angle,
-      message: `Hi ${first}, one area I have been exploring is how AI becomes useful inside the ordinary flow of customer-facing work. A lot of important account knowledge still lives in calls, notes, emails, and individual memory, which makes adoption harder than the strategy suggests. I have been thinking about ways to turn that raw conversation context into cleaner actions and account intelligence. From your perspective, is the bigger challenge choosing what to automate or getting teams to trust the new workflow?`,
+      message: `Hi ${first}, one area I have been exploring is how AI becomes useful inside the ordinary flow of customer-facing work. A lot of important account knowledge still lives in calls, notes, emails, and individual memory, which makes adoption harder than the strategy suggests. ${credibilityLine(lead, "turning raw conversation context into cleaner actions and account intelligence")} From your perspective, is the bigger challenge choosing what to automate or getting teams to trust the new workflow?`,
       withheld: false,
       reason: angle.fit,
     };
@@ -403,7 +418,7 @@ function draftMessage(lead, classification, style, profile) {
   if (lowerTitle.includes("customer success") || lowerTitle.includes("customer experience")) {
     return {
       angle,
-      message: `Hi ${first}, customer experience often breaks down in places customers never see directly: internal handoffs, incomplete context, missed commitments, and small requests that do not reach the right team. I have been focused on how organizations can capture customer conversation context more accurately and route the important pieces before they become friction. From a customer experience perspective, how much of the work depends on improving what happens after the conversation?`,
+      message: `Hi ${first}, customer experience often breaks down in places customers never see directly: internal handoffs, incomplete context, missed commitments, and small requests that do not reach the right team. ${credibilityLine(lead, "capturing customer conversation context more accurately and routing the important pieces before they become friction")} From a customer experience perspective, how much of the work depends on improving what happens after the conversation?`,
       withheld: false,
       reason: angle.fit,
     };
@@ -413,7 +428,7 @@ function draftMessage(lead, classification, style, profile) {
     if (lowerTitle.includes("local")) {
       return {
         angle,
-        message: `Hi ${first}, local sales teams often succeed because reps know the customer, the territory, and the account history in ways that never fully make it into CRM. The risk is that valuable context becomes fragile when territories shift, managers change, or follow-up depends on individual memory. I have been focused on ways to preserve that account knowledge without adding more administrative work for the field. I would be interested in how you think about protecting local judgment while still creating consistency at scale.`,
+        message: `Hi ${first}, local sales teams often succeed because reps know the customer, the territory, and the account history in ways that never fully make it into CRM. The risk is that valuable context becomes fragile when territories shift, managers change, or follow-up depends on individual memory. ${credibilityLine(lead, "preserving account knowledge without adding more administrative work for the field")} I would be interested in how you think about protecting local judgment while still creating consistency at scale.`,
         withheld: false,
         reason: angle.fit,
       };
@@ -422,7 +437,7 @@ function draftMessage(lead, classification, style, profile) {
     if (lowerTitle.includes("regional")) {
       return {
         angle,
-        message: `Hi ${first}, regional sales leadership seems to require a difficult kind of visibility: enough detail to spot account risks, commitments, and changes across many teams, but not so much process that reps spend more time reporting than selling. I have been working on ways to turn customer conversations into cleaner account context and next actions automatically. I would be curious whether that visibility gap becomes more pronounced at the regional level.`,
+        message: `Hi ${first}, regional sales leadership seems to require a difficult kind of visibility: enough detail to spot account risks, commitments, and changes across many teams, but not so much process that reps spend more time reporting than selling. ${credibilityLine(lead, "turning customer conversations into cleaner account context and next actions")} I would be curious whether that visibility gap becomes more pronounced at the regional level.`,
         withheld: false,
         reason: angle.fit,
       };
@@ -431,7 +446,7 @@ function draftMessage(lead, classification, style, profile) {
     if (style === "Shared problem") {
       return {
         angle,
-        message: `Hi ${first}, large sales teams seem to run into a recurring problem: the best customer intelligence is generated in live conversations, but only a thin version makes it back into CRM. That creates gaps in coaching, follow-through, account strategy, and manager visibility. I have been working on ways to capture customer context and next actions without turning sellers into data-entry staff. Do you think leaders underestimate the post-meeting part of sales execution?`,
+        message: `Hi ${first}, large sales teams seem to run into a recurring problem: the best customer intelligence is generated in live conversations, but only a thin version makes it back into CRM. That creates gaps in coaching, follow-through, account strategy, and manager visibility. ${credibilityLine(lead, "capturing customer context and next actions without turning sellers into data-entry staff")} Do you think leaders underestimate the post-meeting part of sales execution?`,
         withheld: false,
         reason: angle.fit,
       };
@@ -440,7 +455,7 @@ function draftMessage(lead, classification, style, profile) {
     if (style === "Challenge conventional thinking") {
       return {
         angle,
-        message: `Hi ${first}, I am becoming convinced that many sales organizations do not have an effort problem as much as a context problem. Reps may be active, but the risks, commitments, decision signals, and customer changes behind that activity often stay buried in scattered notes or memory. I have been focused on how to turn conversations into accurate CRM updates and next actions with less administrative drag. Does that show up more as a productivity issue or a visibility issue from your seat?`,
+        message: `Hi ${first}, I am becoming convinced that many sales organizations do not have an effort problem as much as a context problem. Reps may be active, but the risks, commitments, decision signals, and customer changes behind that activity often stay buried in scattered notes or memory. ${credibilityLine(lead, "turning conversations into accurate CRM updates and next actions with less administrative drag")} Does that show up more as a productivity issue or a visibility issue from your seat?`,
         withheld: false,
         reason: angle.fit,
       };
@@ -448,7 +463,7 @@ function draftMessage(lead, classification, style, profile) {
 
     return {
       angle,
-      message: `Hi ${first}, one sales execution gap I keep seeing is the distance between what happens in customer conversations and what leadership can actually see later. Activity gets logged, but the context behind risks, commitments, objections, and next steps is often incomplete. I have been focused on ways to make that customer intelligence visible without adding more process for reps. I would be curious whether that gap becomes more painful as teams and account coverage get larger.`,
+      message: `Hi ${first}, one sales execution gap I keep seeing is the distance between what happens in customer conversations and what leadership can actually see later. Activity gets logged, but the context behind risks, commitments, objections, and next steps is often incomplete. ${credibilityLine(lead, "making customer intelligence visible without adding more process for reps")} I would be curious whether that gap becomes more painful as teams and account coverage get larger.`,
       withheld: false,
       reason: angle.fit,
     };
@@ -457,7 +472,7 @@ function draftMessage(lead, classification, style, profile) {
   if (lowerTitle.includes("operations") || lowerTitle.includes("strategy")) {
     return {
       angle,
-      message: `Hi ${first}, one operational problem I keep thinking about is how much execution risk begins with incomplete customer information. A commitment, concern, or change may come up in a sales conversation, but the teams responsible for delivery do not always get the context early enough. I have been exploring ways to turn those conversations into structured account intelligence and clearer handoffs. From an operations perspective, how much friction begins with information that arrived late or incomplete?`,
+      message: `Hi ${first}, one operational problem I keep thinking about is how much execution risk begins with incomplete customer information. A commitment, concern, or change may come up in a sales conversation, but the teams responsible for delivery do not always get the context early enough. ${credibilityLine(lead, "turning those conversations into structured account intelligence and clearer handoffs")} From an operations perspective, how much friction begins with information that arrived late or incomplete?`,
       withheld: false,
       reason: angle.fit,
     };

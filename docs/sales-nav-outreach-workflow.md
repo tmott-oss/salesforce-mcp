@@ -31,6 +31,7 @@ The first LinkedIn message should start a conversation, not sell.
 - Keep messages roughly 75-140 words.
 - Sound like one executive starting a thoughtful conversation with another.
 - Low-confidence messages are not placed into the ready queue. Review the Sales Navigator profile first.
+- Introduce the recipient's business problem first, then use Troy's Halosight/AI operations role later as credibility context.
 
 ## Classification
 
