@@ -2,6 +2,8 @@
 
 Local stdio MCP server for Salesforce using direct API access via `jsforce` and the official MCP TypeScript SDK.
 
+New teammates should start here: [Welcome Mat](docs/welcome-mat.md).
+
 It supports:
 
 - Salesforce OAuth Authorization Code + PKCE or JWT bearer auth

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const jsforce = require("../node_modules/jsforce");
+require("dotenv").config();
 
 const args = new Map();
 for (const arg of process.argv.slice(2)) {
@@ -19,6 +20,17 @@ const tokenPath =
   path.join(process.cwd(), ".sf-auth.json");
 const seenPath = path.join(process.cwd(), ".daily-outreach-seen.json");
 const manualReviewField = "Manual_Profile_Review_Required__c";
+const sender = {
+  name: process.env.OUTREACH_SENDER_NAME || "Troy Mott",
+  exactTitle: process.env.OUTREACH_SENDER_TITLE || "VP of AI Operations",
+  company: process.env.OUTREACH_SENDER_COMPANY || "Halosight",
+  functionalRole:
+    process.env.OUTREACH_SENDER_FUNCTIONAL_ROLE ||
+    "leading AI operations",
+  workContext:
+    process.env.OUTREACH_SENDER_WORK_CONTEXT ||
+    "customer intelligence and sales execution",
+};
 
 function readAuth() {
   if (!fs.existsSync(tokenPath)) {
@@ -365,11 +377,11 @@ function credibilityLine(lead, focus) {
     0
   );
   const variants = [
-    `A significant part of my work as VP of AI Operations at Halosight is focused on ${focus}.`,
-    `That problem sits directly within the work I lead at Halosight around ${focus}.`,
-    `Much of my work at Halosight focuses on ${focus}.`,
-    `In my role leading AI operations at Halosight, I spend a lot of time thinking about ${focus}.`,
-    `That challenge is closely connected to the work I lead around customer intelligence and sales execution.`,
+    `A significant part of my work as ${sender.exactTitle} at ${sender.company} is focused on ${focus}.`,
+    `That problem sits directly within the work I lead at ${sender.company} around ${focus}.`,
+    `Much of my work at ${sender.company} focuses on ${focus}.`,
+    `In my role ${sender.functionalRole} at ${sender.company}, I spend a lot of time thinking about ${focus}.`,
+    `That challenge is closely connected to the work I lead around ${sender.workContext}.`,
   ];
   return variants[seed % variants.length];
 }
@@ -608,6 +620,7 @@ async function main() {
   console.log(`Generated: ${new Date().toLocaleString()}`);
   console.log(`Window: Leads created since ${since}`);
   console.log(`Owner: ${identity.display_name}`);
+  console.log(`Sender context: ${sender.name}, ${sender.exactTitle} at ${sender.company}`);
   console.log(`Candidates reviewed: ${leads.length}`);
   console.log(`Already messaged in Salesforce: ${messagedLeadIds.size}`);
   console.log(`Skipped from local seen list: ${seenLeadIds.size}`);
