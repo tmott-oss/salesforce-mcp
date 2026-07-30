@@ -44,6 +44,7 @@ SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
 SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
 SLACK_CHANNEL_ID=C0123456789
 SLACK_MANUAL_REVIEW_LIMIT=0
+SF_ALLOW_WRITE=1
 ```
 
 Never commit `.env`.
@@ -96,9 +97,11 @@ The listener uses Slack Socket Mode, so you do not need a public URL or ngrok.
 Current button behavior:
 
 - **Next 5:** posts the next batch of 5 leads to Slack.
-- **Mark Sent:** acknowledges the lead as sent in the Slack thread.
-- **Needs Review:** acknowledges the lead as needing manual review in the Slack thread.
-- Salesforce is not updated by these buttons yet. That write-back can be added after the team agrees on the exact Salesforce fields/statuses.
+- **Mark Sent:** creates or reuses a completed Salesforce Task with subject `LinkedIn Step Message`, updates `LinkedIn Conversation Stage` to `Conversation Started`, and updates `LinkedIn Last Touch Date`.
+- **Needs Review:** creates or reuses an open Salesforce Task with subject `Review Sales Navigator profile`.
+- **Needs Review:** also sets `Manual_Profile_Review_Required__c` if that Lead field exists in Salesforce.
+
+The Salesforce write-back buttons require `SF_ALLOW_WRITE=1` in `.env`.
 
 ## Troubleshooting
 
@@ -109,3 +112,4 @@ Current button behavior:
 - `Slack post failed: invalid_auth`: regenerate or reinstall the bot token.
 - `Slack post failed: missing_scope`: add `chat:write`, reinstall the app, and update `.env` if the token changed.
 - Buttons do nothing: confirm `npm run slack-actions` is running and Socket Mode is enabled.
+- Button says Salesforce write-back is disabled: add `SF_ALLOW_WRITE=1` to `.env` and restart `npm run slack-actions`.

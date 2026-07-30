@@ -54,6 +54,7 @@ SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
 SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
 SLACK_CHANNEL_ID=C0123456789
 SLACK_MANUAL_REVIEW_LIMIT=0
+SF_ALLOW_WRITE=1
 ```
 
 5. Build the project.
