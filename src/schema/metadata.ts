@@ -83,6 +83,7 @@ export function buildCustomFieldMetadata(objectApiName: string, spec: CustomFiel
       base.scale = spec.scale ?? 0;
       break;
     case "Date":
+    case "DateTime":
     case "Checkbox":
     case "Url":
       break;

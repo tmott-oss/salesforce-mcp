@@ -15,6 +15,7 @@
     "dev:login": "tsx src/index.ts login",
     "dev:apply-schema": "tsx src/index.ts apply-schema",
     "daily-outreach": "node scripts/daily-outreach-queue.cjs",
+    "sync-account-context": "node scripts/sync-account-context-to-opportunities.cjs",
     "slack-actions": "node scripts/slack-actions.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -29,6 +30,7 @@
     "js-yaml": "^4.1.0",
     "jsforce": "^3.10.19",
     "open": "^10.2.0",
+    "openai": "^7.2.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

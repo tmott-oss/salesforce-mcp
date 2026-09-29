@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const jsforce = require("../node_modules/jsforce");
+const { generateLlmOutreachDraft, llmConfigFromEnv } = require("./outreach-llm.cjs");
 require("dotenv").config();
 
 const args = new Map();
@@ -13,6 +14,8 @@ const limit = Number(args.get("limit") || 5);
 const offset = Number(args.get("offset") || 0);
 const days = Number(args.get("days") || 180);
 const deliver = args.get("deliver") || "console";
+const draftMode = args.get("draft-mode") || process.env.OUTREACH_DRAFT_MODE || "template";
+const companyFilter = args.get("company") || "";
 const remember = args.has("remember");
 const resetSeen = args.has("reset-seen");
 const markReview = args.has("mark-review");
@@ -21,6 +24,7 @@ const tokenPath =
   path.join(process.cwd(), ".sf-auth.json");
 const seenPath = path.join(process.cwd(), ".daily-outreach-seen.json");
 const manualReviewField = "Manual_Profile_Review_Required__c";
+const generationLogPath = process.env.OUTREACH_LLM_LOG_PATH || path.join(process.cwd(), ".outreach-generation-log.jsonl");
 const sender = {
   name: process.env.OUTREACH_SENDER_NAME || "Troy Mott",
   exactTitle: process.env.OUTREACH_SENDER_TITLE || "VP of AI Operations",
@@ -66,6 +70,10 @@ function writeSeenLeadIds(seenLeadIds) {
       2
     )
   );
+}
+
+function escapeSoqlString(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
 function scoreLead(lead) {
@@ -129,6 +137,140 @@ function scoreLead(lead) {
     score,
     fit: score >= 5 ? "High" : score >= 3 ? "Medium" : "Low",
     reasons: reasons.slice(0, 4),
+  };
+}
+
+function salesLeadershipEligibility(lead) {
+  const title = (lead.Title || "").toLowerCase();
+  const senioritySignals = [
+    /\bdirector\b/,
+    /\bsr\.?\s+director\b/,
+    /\bsenior\s+director\b/,
+    /\bexecutive\s+director\b/,
+    /\bvp\b/,
+    /\bsvp\b/,
+    /\bevp\b/,
+    /\bvice president\b/,
+    /\bpresident\b/,
+    /\bchief\b/,
+    /\bhead\b/,
+    /\bgeneral manager\b/,
+  ];
+  const salesSignals = [
+    /\bsales\b/,
+    /\brevenue\b/,
+    /\bcommercial\b/,
+    /\bbusiness development\b/,
+    /\bgo to market\b/,
+    /\bgtm\b/,
+    /\bfield\b/,
+    /\bnational accounts?\b/,
+    /\bstrategic accounts?\b/,
+    /\bkey accounts?\b/,
+    /\bmajor accounts?\b/,
+    /\benterprise accounts?\b/,
+    /\bcustomer growth\b/,
+    /\bgrowth\b/,
+    /\bsales enablement\b/,
+    /\benablement\b/,
+    /\bsales operations\b/,
+    /\bcommercial operations\b/,
+  ];
+
+  const hasSeniority = senioritySignals.some((pattern) => pattern.test(title));
+  const hasSalesSignal = salesSignals.some((pattern) => pattern.test(title));
+
+  if (!hasSeniority && !hasSalesSignal) {
+    return {
+      eligible: false,
+      reason: "Title is not director-and-above and does not include a sales-leadership signal.",
+    };
+  }
+  if (!hasSeniority) {
+    return {
+      eligible: false,
+      reason: "Title includes a sales signal but is not director-and-above.",
+    };
+  }
+  if (!hasSalesSignal) {
+    return {
+      eligible: false,
+      reason: "Title is senior enough but does not include a sales-leadership signal.",
+    };
+  }
+
+  return {
+    eligible: true,
+    reason: "Director-and-above sales leadership title.",
+  };
+}
+
+function operatingScopeForLead(lead) {
+  const title = (lead.Title || "").toLowerCase();
+
+  if (hasAny(title, ["channel", "partner", "partnership", "alliances", "alliance", "vendor"])) {
+    return {
+      scope: "Channel or partnerships",
+      confidence: "High",
+      reason: "Title indicates channel, partner, alliance, or vendor responsibility.",
+    };
+  }
+
+  if (hasAny(title, ["sales operations", "sales ops", "commercial operations", "revenue operations", "revops", "enablement"])) {
+    return {
+      scope: "Sales operations",
+      confidence: "High",
+      reason: "Title indicates sales operations, commercial operations, revenue operations, or enablement responsibility.",
+    };
+  }
+
+  if (hasAny(title, ["regional", "region", "local", "area", "district", "market", "territory", "zone"])) {
+    return {
+      scope: "Regional/local sales",
+      confidence: "High",
+      reason: "Title indicates regional, local, area, district, market, territory, or zone responsibility.",
+    };
+  }
+
+  if (hasAny(title, ["national account", "national sales", "strategic account", "key account", "major account", "enterprise account", "global account"])) {
+    return {
+      scope: "National or strategic accounts",
+      confidence: "High",
+      reason: "Title indicates national, strategic, key, major, enterprise, or global account responsibility.",
+    };
+  }
+
+  if (hasAny(title, ["business development", "new business", "market development", "growth"])) {
+    return {
+      scope: "New business development",
+      confidence: "Medium",
+      reason: "Title indicates business development, new business, market development, or growth responsibility.",
+    };
+  }
+
+  if (hasAny(title, ["field sales", "outside sales", "field", "frontline sales"])) {
+    return {
+      scope: "Field sales leadership",
+      confidence: "High",
+      reason: "Title indicates field or outside sales leadership responsibility.",
+    };
+  }
+
+  if (
+    hasAny(title, ["sales", "commercial", "revenue", "account"]) &&
+    hasAny(title, ["healthcare", "foodservice", "public sector", "government", "education", "industrial", "enterprise", "small business", "smb", "mid-market"])
+  ) {
+    return {
+      scope: "Specialized business unit",
+      confidence: "Medium",
+      reason: "Title indicates sales leadership for a specific segment, vertical, or business unit.",
+    };
+  }
+
+  return {
+    scope: "Unknown",
+    confidence: "Low",
+    reason: "Title is senior and sales-adjacent, but does not reveal operating scope.",
   };
 }
 
@@ -252,6 +394,7 @@ function personalizationProfile(lead, classification) {
   const company = lead.Company || "";
   const hasTitle = Boolean(title.trim());
   const hasCompany = Boolean(company.trim());
+  const operatingScope = operatingScopeForLead(lead);
   const scopeSignals = [
     "regional",
     "local",
@@ -277,15 +420,37 @@ function personalizationProfile(lead, classification) {
       confidence: "Low",
       signal: "Insufficient role/company signal in Salesforce.",
       manualReviewRequired: true,
+      operatingScope,
+    };
+  }
+
+  if (salesLeadershipEligibility(lead).eligible && operatingScope.scope === "Unknown") {
+    return {
+      level: "Scope-unknown",
+      confidence: "Low",
+      signal: operatingScope.reason,
+      manualReviewRequired: true,
+      operatingScope,
+    };
+  }
+
+  if (salesLeadershipEligibility(lead).eligible) {
+    return {
+      level: "Scope-specific",
+      confidence: "Medium",
+      signal: operatingScope.reason,
+      manualReviewRequired: false,
+      operatingScope,
     };
   }
 
   if (hasAny(title, scopeSignals)) {
     return {
       level: "Role-specific",
-      confidence: "Medium",
-      signal: "Title includes a distinctive responsibility or scope signal.",
+      confidence: operatingScope.confidence === "High" ? "Medium" : operatingScope.confidence,
+      signal: operatingScope.scope === "Unknown" ? "Title includes a distinctive responsibility or scope signal." : operatingScope.reason,
       manualReviewRequired: false,
+      operatingScope,
     };
   }
 
@@ -295,6 +460,7 @@ function personalizationProfile(lead, classification) {
       confidence: "Medium",
       signal: "Title maps to a relevant buyer or influencer persona.",
       manualReviewRequired: false,
+      operatingScope,
     };
   }
 
@@ -303,6 +469,7 @@ function personalizationProfile(lead, classification) {
     confidence: "Low",
     signal: "Only general title/company context is available.",
     manualReviewRequired: true,
+    operatingScope,
   };
 }
 
@@ -457,34 +624,138 @@ function makeDraft(angle, message, reason) {
   };
 }
 
-function salesVariants(lead) {
+function salesVariants(lead, operatingScope = operatingScopeForLead(lead)) {
   const { first, company } = messageContext(lead);
-  return [
-    makeDraft(
-      {
-        label: "Customer intelligence not making it back into CRM",
-        fit: "Sales leaders need more than activity history; they need the context behind risks, commitments, and account changes.",
-      },
-      `Hi ${first}, sales teams often generate their best account intelligence in live customer conversations, but only a thin version of that context makes it back into CRM. That creates blind spots around commitments, risks, objections, and next steps. ${credibilityLine(lead, "turning customer conversations into useful account context without adding more admin for sellers")} Do you see that gap more as a rep-productivity issue or a manager-visibility issue?`,
-      "Sales leaders own the gap between customer conversations, CRM quality, next steps, and rep productivity."
-    ),
-    makeDraft(
-      {
-        label: "Post-meeting follow-through becoming the hidden sales bottleneck",
-        fit: "Sales execution often breaks after the meeting, when notes, next steps, and internal follow-up are incomplete.",
-      },
-      `Hi ${first}, a lot of sales execution risk shows up after the customer meeting. The conversation may be strong, but the notes are partial, the internal follow-up is uneven, and the next step depends too much on memory. ${credibilityLine(lead, "making the post-meeting workflow cleaner without pulling reps away from selling")} Do you think leaders underestimate how much pipeline quality depends on what happens after the call?`,
-      "The message fits a sales leader responsible for translating activity into reliable execution."
-    ),
-    makeDraft(
-      {
-        label: "Creating sales consistency without scripting the field",
-        fit: "Local and field sales leaders need consistency while preserving the judgment that makes reps effective.",
-      },
-      `Hi ${first}, the best sales organizations seem to face a tricky balance: creating consistency without turning good sellers into script followers. Reps need better context and cleaner follow-through, but not another layer of reporting. ${credibilityLine(lead, "helping teams preserve account context while reducing administrative drag")} I would be curious how ${company} thinks about consistency without flattening local judgment.`,
-      "The message fits revenue leaders who need consistent execution without adding process friction."
-    ),
-  ];
+  const variantsByScope = {
+    "Field sales leadership": [
+      makeDraft(
+        {
+          label: "Complete account context for field execution",
+          fit: "Field sales leaders need reps prepared before meetings and consistent after meetings without extra CRM burden.",
+        },
+        `Hi ${first}—what would change if every field rep had complete account context, instant meeting preparation, and automatic follow-through?\n\nThat is what Halosight enables for sales teams: stronger account memory without adding more manual CRM work.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates field sales leadership, so the value proposition emphasizes rep preparedness and follow-through."
+      ),
+      makeDraft(
+        {
+          label: "Stronger account memory for every rep",
+          fit: "Field teams need durable account context across reps, meetings, and handoffs.",
+        },
+        `Hi ${first}—field sales gets harder when account context depends on scattered notes, individual memory, and last-minute prep.\n\nHalosight captures customer conversation context so reps and managers can work from stronger account memory.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates field sales leadership, so the message focuses on account context and rep execution."
+      ),
+    ],
+    "Regional/local sales": [
+      makeDraft(
+        {
+          label: "Regional visibility without more rep reporting",
+          fit: "Regional and local sales leaders need visibility across territories without slowing the field down.",
+        },
+        `Hi ${first}—regional sales leaders often need a clearer view of what is happening across accounts without asking reps for more reporting.\n\nHalosight captures customer conversation context so teams can preserve stronger account memory and follow-through across territories.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates regional or local sales scope, so the value proposition emphasizes territory visibility and account continuity."
+      ),
+      makeDraft(
+        {
+          label: "Account continuity across territories",
+          fit: "Regional and local sales teams need customer context to survive territory, rep, and manager changes.",
+        },
+        `Hi ${first}—local sales teams often win because reps know the customer, the territory, and the account history. The hard part is keeping that context durable as coverage changes.\n\nThat is what Halosight does: turns customer conversations into stronger account memory and cleaner follow-through.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates regional or local sales scope, so the value proposition emphasizes local account continuity."
+      ),
+    ],
+    "National or strategic accounts": [
+      makeDraft(
+        {
+          label: "Complete account context for strategic accounts",
+          fit: "National and strategic account leaders need account context, commitments, and decision history to travel across teams.",
+        },
+        `Hi ${first}—national accounts get complicated when commitments, decision history, and relationship context live across too many conversations and people.\n\nHalosight captures that context so strategic account teams can work from stronger account memory and cleaner follow-through.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates national or strategic account scope, so the value proposition emphasizes account continuity across complex teams."
+      ),
+      makeDraft(
+        {
+          label: "Strategic account memory across teams",
+          fit: "Strategic accounts require durable account memory across stakeholders, meetings, and handoffs.",
+        },
+        `Hi ${first}—the larger the account, the easier it is for important context to get trapped in individual conversations.\n\nHalosight enables strategic account teams to preserve complete account context and turn meetings into consistent follow-through.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates national or strategic account scope, so the value proposition emphasizes durable account memory."
+      ),
+    ],
+    "New business development": [
+      makeDraft(
+        {
+          label: "Cleaner context from first conversation to follow-up",
+          fit: "New business development leaders need early prospect context to become structured follow-through instead of scattered notes.",
+        },
+        `Hi ${first}—new business work creates a lot of early account context before an opportunity is fully shaped: priorities, objections, stakeholders, timing, and next steps.\n\nHalosight captures that context so teams can move from first conversation to follow-through with stronger account memory.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates new business development scope, so the value proposition emphasizes early context capture and follow-through."
+      ),
+      makeDraft(
+        {
+          label: "Turning early buyer signals into follow-through",
+          fit: "Business development teams need early buyer signals to remain usable as opportunities mature.",
+        },
+        `Hi ${first}—early buyer signals are easy to lose when they live in call notes, memory, or scattered follow-up.\n\nThat is what Halosight does: captures customer conversation context and turns it into complete account context for the team.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates new business development scope, so the message focuses on preserving early buyer signals."
+      ),
+    ],
+    "Channel or partnerships": [
+      makeDraft(
+        {
+          label: "Shared account context across partner motions",
+          fit: "Channel and partnership leaders need account context to move cleanly across partners, sellers, and internal teams.",
+        },
+        `Hi ${first}—partner-led sales motions get messy when account context, commitments, and follow-up are split across companies and teams.\n\nHalosight enables shared account memory by capturing customer conversation context and turning it into cleaner follow-through.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates channel or partnership scope, so the value proposition emphasizes shared context across partner motions."
+      ),
+      makeDraft(
+        {
+          label: "Cleaner handoffs across partners and internal teams",
+          fit: "Channel leaders need customer context to survive partner handoffs and internal ownership changes.",
+        },
+        `Hi ${first}—channel growth depends on context moving cleanly between partners, sellers, and internal owners.\n\nHalosight captures customer conversation context so account memory and follow-through do not depend on scattered notes or informal handoffs.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates channel or partnership scope, so the message focuses on cross-team handoffs."
+      ),
+    ],
+    "Sales operations": [
+      makeDraft(
+        {
+          label: "Better CRM quality without more seller admin",
+          fit: "Sales operations leaders need cleaner CRM context and follow-through without adding friction for reps.",
+        },
+        `Hi ${first}—sales operations is often asked to improve CRM quality and follow-through without creating more admin work for sellers.\n\nThat is what Halosight does: captures customer conversation context and turns it into complete account context for the revenue team.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates sales operations scope, so the value proposition emphasizes CRM quality and reduced rep burden."
+      ),
+      makeDraft(
+        {
+          label: "Turning conversations into usable CRM context",
+          fit: "Sales operations and enablement teams need real customer conversations to produce better CRM data and coaching context.",
+        },
+        `Hi ${first}—a lot of sales execution breaks down after the meeting, when useful customer context never becomes usable CRM context.\n\nHalosight captures that conversation context so teams get stronger account memory, cleaner handoffs, and better follow-through.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates sales operations scope, so the message focuses on turning conversation context into operational data."
+      ),
+    ],
+    "Specialized business unit": [
+      makeDraft(
+        {
+          label: "Complete account context for specialized sales teams",
+          fit: "Specialized business-unit leaders need domain-specific customer context to remain visible across account teams.",
+        },
+        `Hi ${first}—specialized sales teams often carry a lot of customer context that does not fit neatly into standard CRM fields.\n\nHalosight captures conversation context so account teams can preserve stronger account memory and follow-through around the details that matter.\n\nI would like to show you what that could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates specialized business-unit scope, so the value proposition emphasizes preserving domain-specific customer context."
+      ),
+      makeDraft(
+        {
+          label: "Capturing specialized customer context",
+          fit: "Specialized sales motions need customer details, constraints, and commitments to remain usable after meetings.",
+        },
+        `Hi ${first}—in specialized sales motions, the details that matter most often come out in conversation: constraints, commitments, timing, stakeholders, and account history.\n\nHalosight enables teams to capture that context and turn it into stronger account memory.\n\nI would like to show you what it could mean for ${company}. Are you open to 20 minutes next week?`,
+        "The title indicates specialized business-unit scope, so the message focuses on domain-specific account context."
+      ),
+    ],
+  };
+
+  return variantsByScope[operatingScope.scope] || [];
 }
 
 function localSalesVariants(lead) {
@@ -609,6 +880,7 @@ function draftMessage(lead, classification, style, profile, batchState = { usedA
   const { first, title, company } = messageContext(lead);
   const lowerTitle = title.toLowerCase();
   const angle = outreachAngle(lead, classification, style);
+  const operatingScope = profile.operatingScope || operatingScopeForLead(lead);
 
   if (profile.confidence === "Low") {
     return {
@@ -616,6 +888,19 @@ function draftMessage(lead, classification, style, profile, batchState = { usedA
       message: "",
       withheld: true,
       reason: "Low personalization confidence. Review the Sales Navigator profile before drafting.",
+    };
+  }
+
+  if (salesLeadershipEligibility(lead).eligible) {
+    const variants = salesVariants(lead, operatingScope);
+    if (variants.length) {
+      return chooseVariant(lead, variants, batchState);
+    }
+    return {
+      angle,
+      message: "",
+      withheld: true,
+      reason: `Manual profile review required before outreach. Operating scope: ${operatingScope.scope}. ${operatingScope.reason}`,
     };
   }
 
@@ -641,10 +926,6 @@ function draftMessage(lead, classification, style, profile, batchState = { usedA
 
   if (titleMatches(lowerTitle, ["enablement", "sales operations", "commercial operations", "strategy"])) {
     return chooseVariant(lead, strategyEnablementVariants(lead), batchState);
-  }
-
-  if (titleMatches(lowerTitle, ["sales", "commercial", "revenue", "account", "field"])) {
-    return chooseVariant(lead, salesVariants(lead), batchState);
   }
 
   return {
@@ -697,6 +978,18 @@ async function postSlackMessage({ text, threadTs, blocks }) {
     throw new Error(`Slack post failed: ${body.error || response.statusText}`);
   }
   return body;
+}
+
+async function getSlackPermalink({ channel, ts }) {
+  const params = new URLSearchParams({ channel, message_ts: ts });
+  const response = await fetch(`https://slack.com/api/chat.getPermalink?${params}`, {
+    headers: {
+      Authorization: `Bearer ${slack.token}`,
+    },
+  });
+  const body = await response.json();
+  if (!response.ok || !body.ok) return "";
+  return body.permalink || "";
 }
 
 function leadLinks(auth, lead) {
@@ -770,6 +1063,16 @@ function leadBlocks(item, index, auth) {
       text: slackButtonText("Needs Review"),
       action_id: "outreach_needs_review",
       value: JSON.stringify({ leadId: lead.Id, leadName: lead.Name }),
+    },
+    {
+      type: "button",
+      text: slackButtonText("Needs Research"),
+      action_id: "outreach_needs_research",
+      value: JSON.stringify({
+        leadId: lead.Id,
+        leadName: lead.Name,
+        salesNavUrl: lead.Sales_Navigator_URL__c || "",
+      }),
     }
   );
 
@@ -778,14 +1081,16 @@ function leadBlocks(item, index, auth) {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*${index + 1}. ${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")}\n*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Confidence:* ${personalization.confidence}\n*Angle:* ${slackEscape(draft.angle.label)}\n*Prior LinkedIn steps:* ${slackEscape(activity.map((task) => task.Subject).join(", ") || "none")}`,
+        text: `*${index + 1}. ${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")}\n*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Scope:* ${slackEscape(personalization.operatingScope?.scope || "Unknown")} | *Confidence:* ${personalization.confidence}\n*Angle:* ${slackEscape(draft.angle.label)}\n*Prior LinkedIn steps:* ${slackEscape(activity.map((task) => task.Subject).join(", ") || "none")}`,
       },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Draft message:*\n>${slackEscape(draft.message)}`,
+        text: draft.message
+          ? `*Draft message:*\n>${slackEscape(draft.message)}`
+          : `*Draft status:*\n>${slackEscape(draft.reason || "Manual profile research required.")}`,
       },
     },
     {
@@ -799,34 +1104,218 @@ function formatSlackLead(item, index, auth) {
   const { lead, scoring, classification, draft, personalization, activity } = item;
   return [
     `*${index + 1}. ${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")}`,
-    `*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Confidence:* ${personalization.confidence}`,
+    `*Fit:* ${scoring.fit} (${scoring.score}) | *Persona:* ${classification.persona} | *Scope:* ${slackEscape(personalization.operatingScope?.scope || "Unknown")} | *Confidence:* ${personalization.confidence}`,
     `*Angle:* ${slackEscape(draft.angle.label)}`,
     `*Prior LinkedIn steps:* ${slackEscape(activity.map((task) => task.Subject).join(", ") || "none")}`,
     `*Links:* ${leadLinks(auth, lead)}`,
-    `*Draft message:*`,
-    `>${slackEscape(draft.message)}`,
+    draft.message ? `*Draft message:*` : `*Draft status:*`,
+    `>${slackEscape(draft.message || draft.reason || "Manual profile research required.")}`,
   ].join("\n");
 }
 
 function formatSlackManualReview(item, auth) {
   const { lead, scoring, classification, personalization } = item;
-  return `• *${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")} | Fit: ${scoring.fit} | Persona: ${classification.persona} | ${slackEscape(personalization.signal)} | ${leadLinks(auth, lead)}`;
+  return `• *${slackEscape(lead.Name)}* — ${slackEscape(lead.Title || "-")} at ${slackEscape(lead.Company || "-")} | Fit: ${scoring.fit} | Persona: ${classification.persona} | Scope: ${slackEscape(personalization.operatingScope?.scope || "Unknown")} | ${slackEscape(personalization.signal)} | ${leadLinks(auth, lead)}`;
 }
 
-async function deliverToSlack({ auth, identity, since, leads, messagedLeadIds, seenLeadIds, eligibleQueue, readyQueue, manualReviewQueue, queue, nextOffset }) {
+function readRecentGenerationLogs(maxEntries = 50) {
+  if (!fs.existsSync(generationLogPath)) return [];
+  const lines = fs.readFileSync(generationLogPath, "utf8").split(/\r?\n/).filter(Boolean);
+  return lines.slice(-maxEntries).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+function compactLeadForCoordination(item) {
+  return {
+    id: item.lead.Id,
+    name: item.lead.Name,
+    title: item.lead.Title,
+    company: item.lead.Company,
+    persona: item.classification?.persona,
+    fit: item.scoring?.fit,
+    score: item.scoring?.score,
+    templateAngle: item.templateDraft?.angle?.label || item.draft?.angle?.label,
+    finalAngle: item.draft?.angle?.label,
+    finalMessage: item.draft?.message,
+  };
+}
+
+async function fetchLeadNotes(conn, leadIds) {
+  const notesByLead = new Map();
+  for (const id of leadIds) notesByLead.set(id, []);
+  if (!leadIds.length) return notesByLead;
+
+  const idList = leadIds.map((id) => `'${id}'`).join(",");
+
+  try {
+    const notes = await conn.query(`
+      SELECT Id, ParentId, Title, Body, CreatedDate
+      FROM Note
+      WHERE ParentId IN (${idList})
+      ORDER BY CreatedDate DESC
+      LIMIT 100
+    `);
+    for (const note of notes.records) {
+      if (!notesByLead.has(note.ParentId)) notesByLead.set(note.ParentId, []);
+      notesByLead.get(note.ParentId).push({
+        type: "Classic Note",
+        title: note.Title,
+        bodyPreview: String(note.Body || "").slice(0, 1000),
+        createdDate: note.CreatedDate,
+      });
+    }
+  } catch {
+    // Some orgs disable classic Notes or restrict API access. Continue with other context.
+  }
+
+  try {
+    const links = await conn.query(`
+      SELECT LinkedEntityId, ContentDocumentId
+      FROM ContentDocumentLink
+      WHERE LinkedEntityId IN (${idList})
+      LIMIT 100
+    `);
+    const documentIds = [...new Set(links.records.map((record) => record.ContentDocumentId).filter(Boolean))];
+    if (documentIds.length) {
+      const docIdList = documentIds.map((id) => `'${id}'`).join(",");
+      const contentNotes = await conn.query(`
+        SELECT Id, Title, TextPreview, CreatedDate
+        FROM ContentNote
+        WHERE Id IN (${docIdList})
+        ORDER BY CreatedDate DESC
+        LIMIT 100
+      `);
+      const noteById = new Map(contentNotes.records.map((note) => [note.Id, note]));
+      for (const link of links.records) {
+        const note = noteById.get(link.ContentDocumentId);
+        if (!note) continue;
+        if (!notesByLead.has(link.LinkedEntityId)) notesByLead.set(link.LinkedEntityId, []);
+        notesByLead.get(link.LinkedEntityId).push({
+          type: "Enhanced Note",
+          title: note.Title,
+          bodyPreview: String(note.TextPreview || "").slice(0, 1000),
+          createdDate: note.CreatedDate,
+        });
+      }
+    }
+  } catch {
+    // Enhanced Notes are optional context; absence should not block the queue.
+  }
+
+  return notesByLead;
+}
+
+function buildLlmContext({ item, templateDraft, currentBatch, reviewedQueue, recentLogs, notes }) {
+  const sameCompany = (item.lead.Company || "").toLowerCase();
+  const sameCompanyCurrent = reviewedQueue
+    .filter((other) => other.lead.Id !== item.lead.Id)
+    .filter((other) => (other.lead.Company || "").toLowerCase() === sameCompany)
+    .slice(0, 12)
+    .map(compactLeadForCoordination);
+
+  const sameCompanyBatch = currentBatch
+    .filter((other) => other.lead.Id !== item.lead.Id)
+    .filter((other) => (other.lead.Company || "").toLowerCase() === sameCompany)
+    .map(compactLeadForCoordination);
+
+  const recentSameCompany = recentLogs
+    .filter((entry) => {
+      const company = entry.context?.recipient?.company || "";
+      return company.toLowerCase() === sameCompany;
+    })
+    .slice(-10)
+    .map((entry) => ({
+      recipient: entry.context?.recipient,
+      selectedConversationStrategy: entry.selectedConversationStrategy,
+      firstPassDraft: entry.firstPassDraft,
+      finalDraft: entry.finalDraft,
+      model: entry.model,
+      fallbackInvoked: entry.fallbackInvoked,
+      startedAt: entry.startedAt,
+    }));
+
+  return {
+    sender: {
+      ...sender,
+      schedulingInstruction:
+        "Ask whether the recipient is open to 20 minutes next week. Do not include a scheduling link.",
+    },
+    recipient: {
+      id: item.lead.Id,
+      name: item.lead.Name,
+      title: item.lead.Title,
+      company: item.lead.Company,
+      geography: {
+        city: item.lead.City,
+        state: item.lead.State,
+        country: item.lead.Country,
+      },
+      salesNavigatorUrl: item.lead.Sales_Navigator_URL__c,
+      linkedInProfileUrl: item.lead.LinkedIn_Profile_URL__c,
+    },
+    salesforce: {
+      fields: {
+        status: item.lead.Status,
+        leadSource: item.lead.LeadSource,
+        createdDate: item.lead.CreatedDate,
+        lastActivityDate: item.lead.LastActivityDate,
+        linkedInConnectionStatus: item.lead.LinkedIn_Connection_Status__c,
+        linkedInConversationStage: item.lead.LinkedIn_Conversation_Stage__c,
+        linkedInLastTouchDate: item.lead.LinkedIn_Last_Touch_Date__c,
+        description: item.lead.Description,
+      },
+      scoring: item.scoring,
+      classification: item.classification,
+      personalization: item.personalization,
+      operatingScope: item.personalization?.operatingScope,
+      priorLinkedInSteps: item.activity.map((task) => ({
+        id: task.Id,
+        subject: task.Subject,
+        date: task.ActivityDate,
+        status: task.Status,
+        type: task.Type,
+        description: task.Description,
+      })),
+      notes,
+    },
+    queueCoordination: {
+      currentBatch: currentBatch.map(compactLeadForCoordination),
+      sameCompanyInCurrentBatch: sameCompanyBatch,
+      sameCompanyInCurrentQueue: sameCompanyCurrent,
+      recentSameCompanyGeneratedMessages: recentSameCompany,
+    },
+    defaultRecommendation: {
+      conversationStyle: item.style,
+      persona: item.classification.persona,
+      operatingScope: item.personalization?.operatingScope,
+      angle: templateDraft.angle,
+      templateDraft: templateDraft.message,
+      mayReject: true,
+    },
+  };
+}
+
+async function deliverToSlack({ auth, identity, since, companyFilter, leads, targetExcludedCount, messagedLeadIds, seenLeadIds, eligibleQueue, readyQueue, manualReviewQueue, queue, nextOffset }) {
   const summary = [
     `*Daily Sales Nav Outreach Queue*`,
     `Sender: ${slackEscape(sender.name)}, ${slackEscape(sender.exactTitle)} at ${slackEscape(sender.company)}`,
     `Owner: ${slackEscape(identity.display_name)}`,
     `Window: Leads created since ${since}`,
+    companyFilter ? `Company filter: ${slackEscape(companyFilter)}` : "",
     `Candidates reviewed: ${leads.length}`,
+    `Excluded by target filter: ${targetExcludedCount}`,
     `Already messaged in Salesforce: ${messagedLeadIds.size}`,
     `Skipped from local seen list: ${seenLeadIds.size}`,
     `Eligible remaining: ${eligibleQueue.length}`,
     `Ready for review: ${readyQueue.length}`,
     `Manual profile review required: ${manualReviewQueue.length}`,
     `Posting ${queue.length} ready lead(s) in this thread.`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const parent = await postSlackMessage({
     text: summary,
@@ -881,9 +1370,13 @@ async function main() {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
+  const companyWhereClause = companyFilter
+    ? `\n      AND Company LIKE '%${escapeSoqlString(companyFilter)}%'`
+    : "";
 
   const leadQuery = `
-    SELECT Id, Name, Company, Title, Status, LeadSource, CreatedDate, LastActivityDate,
+    SELECT Id, Name, Company, Title, City, State, Country, Description,
+           Status, LeadSource, CreatedDate, LastActivityDate,
            LinkedIn_Connection_Status__c, LinkedIn_Conversation_Stage__c,
            LinkedIn_Last_Touch_Date__c, Sales_Navigator_URL__c, LinkedIn_Profile_URL__c
     FROM Lead
@@ -891,6 +1384,7 @@ async function main() {
       AND OwnerId = '${identity.user_id}'
       AND CreatedDate >= ${since}T00:00:00Z
       AND Status IN ('Cold/ Not Started', 'Approaching')
+      ${companyWhereClause}
     ORDER BY CreatedDate DESC
     LIMIT 200
   `;
@@ -905,14 +1399,16 @@ async function main() {
       !company.includes("poller liveness")
     );
   });
+  const targetQualifiedLeads = leads.filter((lead) => salesLeadershipEligibility(lead).eligible);
+  const targetExcludedCount = leads.length - targetQualifiedLeads.length;
 
-  const leadIds = leads.map((lead) => `'${lead.Id}'`).join(",");
+  const leadIds = targetQualifiedLeads.map((lead) => `'${lead.Id}'`).join(",");
   let messagedLeadIds = new Set();
   let activityByLead = new Map();
 
   if (leadIds) {
     const tasks = await conn.query(`
-      SELECT Id, WhoId, Subject, ActivityDate, Status, Type
+      SELECT Id, WhoId, Subject, ActivityDate, Status, Type, Description
       FROM Task
       WHERE WhoId IN (${leadIds})
         AND Status = 'Completed'
@@ -933,7 +1429,7 @@ async function main() {
     }
   }
 
-  const eligibleQueue = leads
+  const eligibleQueue = targetQualifiedLeads
     .filter((lead) => !messagedLeadIds.has(lead.Id))
     .filter((lead) => !seenLeadIds.has(lead.Id))
     .map((lead) => {
@@ -955,21 +1451,59 @@ async function main() {
     usedAngles: new Set(),
     usedCompanyAngles: new Set(),
   };
-  const reviewedQueue = eligibleQueue.map((item, index) => {
+  const reviewedQueue = [];
+  for (const [index, item] of eligibleQueue.entries()) {
     const style = chooseConversationStyle(item.lead, item.classification.persona, offset + index);
     const personalization = personalizationProfile(item.lead, item.classification);
-    const draft = draftMessage(item.lead, item.classification, style, personalization, batchState);
-    return {
+    const templateDraft = draftMessage(item.lead, item.classification, style, personalization, batchState);
+    reviewedQueue.push({
       ...item,
       style,
       personalization,
-      draft,
-    };
-  });
+      templateDraft,
+      draft: templateDraft,
+      llmAudit: null,
+    });
+  }
 
   const readyQueue = reviewedQueue.filter((item) => !item.personalization.manualReviewRequired);
   const manualReviewQueue = reviewedQueue.filter((item) => item.personalization.manualReviewRequired);
   const queue = readyQueue.slice(offset, offset + limit);
+
+  if (draftMode !== "template") {
+    if (!["llm", "llm-dry-run"].includes(draftMode)) {
+      throw new Error(`Unsupported draft mode: ${draftMode}. Use template, llm-dry-run, or llm.`);
+    }
+    const llmConfig = llmConfigFromEnv();
+    const notesByLead = await fetchLeadNotes(conn, queue.map((item) => item.lead.Id));
+    const recentLogs = readRecentGenerationLogs();
+
+    for (const item of queue) {
+      const context = buildLlmContext({
+        item,
+        templateDraft: item.templateDraft,
+        currentBatch: queue,
+        reviewedQueue,
+        recentLogs,
+        notes: notesByLead.get(item.lead.Id) || [],
+      });
+      const { draft, audit } = await generateLlmOutreachDraft({
+        context,
+        templateDraft: item.templateDraft,
+        config: llmConfig,
+      });
+      item.draft = draft;
+      item.llmAudit = audit;
+      if (draft.withheld) {
+        item.personalization = {
+          ...item.personalization,
+          confidence: "Low",
+          manualReviewRequired: true,
+          signal: draft.reason,
+        };
+      }
+    }
+  }
 
   if (markReview && canMarkManualReview && manualReviewQueue.length) {
     const updates = manualReviewQueue.map((item) => ({
@@ -983,9 +1517,12 @@ async function main() {
   console.log("");
   console.log(`Generated: ${new Date().toLocaleString()}`);
   console.log(`Window: Leads created since ${since}`);
+  if (companyFilter) console.log(`Company filter: ${companyFilter}`);
   console.log(`Owner: ${identity.display_name}`);
   console.log(`Sender context: ${sender.name}, ${sender.exactTitle} at ${sender.company}`);
   console.log(`Candidates reviewed: ${leads.length}`);
+  console.log(`Target filter: Director-and-above sales leaders only`);
+  console.log(`Excluded by target filter: ${targetExcludedCount}`);
   console.log(`Already messaged in Salesforce: ${messagedLeadIds.size}`);
   console.log(`Skipped from local seen list: ${seenLeadIds.size}`);
   console.log(`Eligible remaining: ${eligibleQueue.length}`);
@@ -994,6 +1531,7 @@ async function main() {
   console.log(`Offset: ${offset}`);
   console.log(`Recommended today: ${queue.length}`);
   console.log(`Delivery: ${deliver}`);
+  console.log(`Draft mode: ${draftMode}`);
   if (markReview && !canMarkManualReview) {
     console.log(`Manual review write-back skipped: Lead.${manualReviewField} does not exist yet.`);
   }
@@ -1009,9 +1547,12 @@ async function main() {
     console.log(`- Persona: ${classification.persona}`);
     console.log(`- Recommendation: ${classification.priority}`);
     console.log(`- Conversation style: ${style}`);
+    console.log(`- Operating scope: ${personalization.operatingScope?.scope || "Unknown"} (${personalization.operatingScope?.reason || "No scope reason available."})`);
     console.log(`- Personalization level: ${personalization.level}`);
     console.log(`- Confidence: ${personalization.confidence}`);
     console.log(`- Recommended problem angle: ${draft.angle.label}`);
+    if (draft.selectedConversationStrategy) console.log(`- LLM conversation strategy: ${draft.selectedConversationStrategy}`);
+    if (draft.fallbackInvoked) console.log(`- Draft source: Template fallback — manual rewrite required`);
     console.log(`- Status: ${lead.Status || "-"}`);
     console.log(`- Last LinkedIn touch: ${lead.LinkedIn_Last_Touch_Date__c || "-"}`);
     console.log(`- Prior LinkedIn steps: ${activity.map((task) => task.Subject).join(", ") || "none"}`);
@@ -1023,7 +1564,13 @@ async function main() {
     console.log("");
     console.log(`Draft:`);
     console.log("");
-    console.log(draft.message);
+    console.log(draft.message || draft.reason);
+    if (draftMode === "llm-dry-run") {
+      console.log("");
+      console.log(`Current template output for comparison:`);
+      console.log("");
+      console.log(item.templateDraft.message || item.templateDraft.reason);
+    }
     console.log("");
   }
 
@@ -1036,7 +1583,7 @@ async function main() {
       const { lead, scoring, classification, personalization } = item;
       const url = `${auth.instanceUrl}/lightning/r/Lead/${lead.Id}/view`;
       console.log(`- ${lead.Name} (${lead.Company || "-"}, ${lead.Title || "-"})`);
-      console.log(`  Confidence: ${personalization.confidence}; Persona: ${classification.persona}; Fit: ${scoring.fit}; Reason: ${personalization.signal}; Salesforce: ${url}`);
+      console.log(`  Confidence: ${personalization.confidence}; Persona: ${classification.persona}; Scope: ${personalization.operatingScope?.scope || "Unknown"}; Fit: ${scoring.fit}; Reason: ${personalization.signal}; Salesforce: ${url}`);
     }
     if (manualReviewQueue.length > 15) {
       console.log(`- ...and ${manualReviewQueue.length - 15} more`);
@@ -1049,7 +1596,9 @@ async function main() {
       auth,
       identity,
       since,
+      companyFilter,
       leads,
+      targetExcludedCount,
       messagedLeadIds,
       seenLeadIds,
       eligibleQueue,
@@ -1058,7 +1607,12 @@ async function main() {
       queue,
       nextOffset: offset + limit,
     });
-    console.log(`Posted Slack queue to channel ${slack.channelId} at thread ${post.ts}`);
+    console.log(`Posted Slack queue to channel ${post.channel || slack.channelId} at thread ${post.ts}`);
+    const permalink = await getSlackPermalink({
+      channel: post.channel || slack.channelId,
+      ts: post.ts,
+    });
+    if (permalink) console.log(`Slack permalink: ${permalink}`);
     console.log("");
   }
 

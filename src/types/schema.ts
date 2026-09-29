@@ -3,6 +3,7 @@ export type FieldType =
   | "LongTextArea"
   | "Number"
   | "Date"
+  | "DateTime"
   | "Checkbox"
   | "Url"
   | "Picklist"

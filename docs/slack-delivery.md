@@ -40,8 +40,8 @@ The channel ID usually starts with `C` for public channels or `G` for private ch
 Add these to `.env`:
 
 ```env
-SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
-SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
+SLACK_BOT_TOKEN=YOUR_SLACK_BOT_TOKEN
+SLACK_APP_TOKEN=YOUR_SLACK_APP_TOKEN
 SLACK_CHANNEL_ID=C0123456789
 SLACK_MANUAL_REVIEW_LIMIT=0
 SF_ALLOW_WRITE=1
@@ -70,7 +70,7 @@ The script posts:
 - One parent summary message in the configured channel.
 - One threaded reply per ready-for-review lead.
 - A manual-review count in the parent summary.
-- Buttons for opening Salesforce, opening Sales Navigator, marking sent, flagging review, and generating the next 5 leads.
+- Buttons for opening Salesforce, opening Sales Navigator, marking sent, flagging review, flagging Sales Navigator research, and generating the next 5 leads.
 
 Each ready lead includes:
 
@@ -100,6 +100,7 @@ Current button behavior:
 - **Mark Sent:** creates or reuses a completed Salesforce Task with subject `LinkedIn Step Message`, updates `LinkedIn Conversation Stage` to `Conversation Started`, and updates `LinkedIn Last Touch Date`.
 - **Needs Review:** creates or reuses an open Salesforce Task with subject `Review Sales Navigator profile`.
 - **Needs Review:** also sets `Manual_Profile_Review_Required__c` if that Lead field exists in Salesforce.
+- **Needs Research:** creates or reuses an open Salesforce Task with subject `Research Sales Navigator profile` and replies in-thread with a short research checklist for recent posts, reposts, comments, role language, and safe personalization hooks.
 
 The Salesforce write-back buttons require `SF_ALLOW_WRITE=1` in `.env`.
 

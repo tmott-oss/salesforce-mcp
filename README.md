@@ -13,20 +13,27 @@ It supports:
 - Tooling-enabled `jsforce` connection
 - Metadata API creation and updates for `CustomObject` and `CustomField`
 - Declarative schema application from JSON or YAML
+- Optional Sales Navigator outreach queue generation
+- Optional Slack delivery and Slack button write-back for reviewed outreach
 
 ## Requirements
 
 - Node.js 20+
 - A Salesforce user with:
   - `API Enabled`
-  - `Customize Application`
-  - `Modify Metadata Through Metadata API Functions`
+  - `Customize Application` for schema changes only
+  - `Modify Metadata Through Metadata API Functions` for schema changes only
 - An External Client App or Connected App client ID
 
 ## Install
 
+Clone the repo and install dependencies:
+
 ```bash
+git clone https://github.com/tmott-oss/salesforce-mcp.git
+cd salesforce-mcp
 npm install
+npm run build
 ```
 
 ## Environment
@@ -104,6 +111,12 @@ npm run dev:login
 npm run dev:serve
 ```
 
+For MCP clients, use the built entrypoint:
+
+```bash
+node dist/index.js serve
+```
+
 ### Apply a schema file from the CLI
 
 ```bash
@@ -117,9 +130,9 @@ npm run dev:apply-schema -- examples/custom-crm.schema.yaml
 
 - `soql_query(query)`
 - `describe_sobject(name)`
-- `create_record(sobject, fields)`
-- `update_record(sobject, id, fields)`
-- `upsert_record(sobject, extIdField, rec)`
+- `create_record(sobject, fields, dryRun?)`
+- `update_record(sobject, id, fields, dryRun?)`
+- `upsert_record(sobject, extIdField, rec, dryRun?)`
 - `delete_record(sobject, id, dryRun?)`
 
 ### Schema
@@ -131,10 +144,12 @@ npm run dev:apply-schema -- examples/custom-crm.schema.yaml
 
 ## Safety
 
-- `delete_record` requires `SF_ALLOW_WRITE=1` unless `dryRun: true`
+- `create_record`, `update_record`, `upsert_record`, and `delete_record` require `SF_ALLOW_WRITE=1` unless `dryRun: true`
 - Metadata mutations require `SF_ALLOW_METADATA=1` unless `dryRun: true`
 - Tokens are persisted to a `0600` JSON file
 - No secrets are hardcoded; everything comes from env
+- Keep `.env` and `.sf-auth.json` local only; both are ignored by git
+- Admin maintenance scripts are dry-run-first unless the command says otherwise
 
 ## Example Acceptance Flow
 
@@ -213,3 +228,10 @@ Re-running that command is safe because the server upserts objects and creates-o
 ```bash
 npm run build
 ```
+
+## Optional Workflows
+
+- Sales Navigator outreach setup: [Welcome Mat](docs/welcome-mat.md)
+- Slack delivery setup: [Slack Bot Delivery](docs/slack-delivery.md)
+- LLM outreach drafting details: [LLM Outreach Generation](docs/llm-outreach-generation.md)
+- Admin-only maintenance scripts: [Admin Maintenance Scripts](docs/admin-maintenance.md)

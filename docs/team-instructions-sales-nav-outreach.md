@@ -17,12 +17,17 @@ Use LinkedIn Sales Navigator to identify and message prospects, while Salesforce
 
 ## Messaging Rules
 
-- First message should start a conversation, not pitch.
-- Do not ask for a meeting in the first message.
-- Do not mention Halosight unless it feels natural.
+- Only director-and-above sales leaders should enter the outreach queue.
+- First message should be bold and direct.
+- Ask whether the recipient is open to 20 minutes next week.
+- Determine operating scope before drafting: field sales leadership, regional/local sales, national or strategic accounts, new business development, channel or partnerships, sales operations, specialized business unit, or unknown.
+- If operating scope is unknown, require manual profile review before generating a meeting-oriented message.
+- Clearly name Halosight and match the message to the recipient's scope.
+- Prefer complete account context, stronger account memory, customer conversation context, and automatic follow-through.
+- Prefer phrases like "Halosight enables," "Halosight captures," and "That's what Halosight does."
+- Never use "perfect account memory" or "Halosight is building."
 - Do not include links.
-- Keep the tone peer-to-peer, thoughtful, concise, and human.
-- Target length: 75-140 words.
+- Keep the tone executive, concise, and confident.
 - If Codex marks a lead as **Manual Profile Review Required**, review the Sales Navigator profile before using a message.
 
 ## What Salesforce Tracks

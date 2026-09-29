@@ -21,26 +21,30 @@ npm run daily-outreach -- --limit=5
 
 ## Drafting Rules
 
-The first LinkedIn message should start a conversation, not sell.
+The first LinkedIn message should target director-and-above sales leaders with a bold value proposition matched to the lead's likely operating scope.
 
-- Do not ask for a meeting.
-- Do not pitch Halosight.
+- Ask whether the recipient is open to 20 minutes next week.
+- Determine operating scope before drafting: field sales leadership, regional/local sales, national or strategic accounts, new business development, channel or partnerships, sales operations, specialized business unit, or unknown.
+- If operating scope is unknown, require manual profile review before generating a meeting-oriented message.
+- Clearly name Halosight and match the message to the recipient's scope.
+- Prefer complete account context, stronger account memory, customer conversation context, and automatic follow-through.
+- Prefer phrases like "Halosight enables," "Halosight captures," and "That's what Halosight does."
+- Never use "perfect account memory" or "Halosight is building."
 - Do not include links.
-- Do not use a sales cadence tone.
+- Do not use a generic sales cadence tone.
 - Do not say "I help companies" or "I'd love to show you."
-- Keep messages roughly 75-140 words.
-- Sound like one executive starting a thoughtful conversation with another.
+- Keep messages concise enough for LinkedIn.
+- Sound like a direct executive note to a sales leader.
 - Low-confidence messages are not placed into the ready queue. Review the Sales Navigator profile first.
-- Introduce the recipient's business problem first, then use Troy's Halosight/AI operations role later as credibility context.
+- Do not diagnose the recipient's organization beyond saying what the capability could mean for their company.
 
 ## Classification
 
-The workflow classifies leads into:
+The queue now only drafts for director-and-above sales leaders. It weeds out records that do not have both a seniority signal and a sales-leadership signal.
 
-- Tier 1 Buyer: sales, commercial, revenue, customer success, sales enablement, or commercial operations.
-- Strategic Influencer: CIO, CTO, AI, digital transformation, or strategy roles.
-- Executive Sponsor: CEO, president, COO, or equivalent senior operator.
-- Low Priority: HR, procurement, legal, audit, ERP, or PMO unless there is a strong strategic reason.
+- Seniority signal: director, VP, vice president, president, chief, head, or general manager.
+- Sales-leadership signal: sales, revenue, commercial, business development, GTM, field, account, sales enablement, sales operations, or commercial operations.
+- Non-sales senior leaders, operations-only leaders, and below-director sales roles are excluded from the ready queue.
 
 ## Personalization Confidence
 

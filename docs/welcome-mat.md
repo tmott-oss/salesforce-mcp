@@ -1,15 +1,15 @@
-# Welcome Mat: Salesforce MCP + Sales Navigator Outreach
+# Welcome Mat: Salesforce MCP + Optional Outreach
 
-This repo gives each teammate a local MCP server that connects directly to Salesforce, plus an optional Sales Navigator outreach queue.
+This repo gives each teammate a local MCP server that connects directly to Salesforce. The Sales Navigator outreach queue and Slack delivery are optional add-ons.
 
 ## What This Does
 
 - Connects a local MCP client to Salesforce through REST, Tooling, and Metadata APIs.
 - Lets approved users query and update Salesforce records.
 - Supports schema work such as custom objects and fields when metadata writes are enabled.
-- Generates a daily Sales Navigator outreach queue from Salesforce Leads.
-- Can deliver the queue to Terminal or to a Slack channel through a Slack bot.
-- Holds low-confidence outreach for manual profile review so messages do not become generic.
+- Optionally generates a daily Sales Navigator outreach queue from Salesforce Leads.
+- Optionally delivers the queue to Terminal or to a Slack channel through a Slack bot.
+- Holds low-confidence outreach for manual profile review when outreach is enabled.
 
 ## Setup In 10 Minutes
 
@@ -50,8 +50,8 @@ OUTREACH_SENDER_WORK_CONTEXT=the work you lead around your customer problem
 Optional Slack delivery:
 
 ```env
-SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
-SLACK_APP_TOKEN=xapp-your-slack-app-token-for-socket-mode
+SLACK_BOT_TOKEN=YOUR_SLACK_BOT_TOKEN
+SLACK_APP_TOKEN=YOUR_SLACK_APP_TOKEN
 SLACK_CHANNEL_ID=C0123456789
 SLACK_MANUAL_REVIEW_LIMIT=0
 SF_ALLOW_WRITE=1
@@ -76,6 +76,8 @@ npm run dev:serve
 ```
 
 Then connect it from Codex, Claude Code, or another MCP client using the config in the main `README.md`.
+
+8. Optional: configure Sales Navigator outreach and Slack delivery only if that teammate will use those workflows.
 
 ## Salesforce Prerequisites
 
@@ -181,6 +183,7 @@ For Slack setup details, see [Slack Bot Delivery](slack-delivery.md).
 - `.env` created and customized.
 - Salesforce login completed.
 - MCP client can run `soql_query("SELECT Id, Name FROM Account LIMIT 3")`.
-- Outreach queue runs with your sender context.
-- Slack bot delivery is configured if your team wants channel delivery.
+- MCP client can query Salesforce.
+- Outreach queue runs with your sender context, if enabled.
+- Slack bot delivery is configured, if your team wants channel delivery.
 - You understand whether write/metadata permissions are enabled.
