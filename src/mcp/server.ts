@@ -66,9 +66,19 @@ export function createMcpServer(config: AppConfig): McpServer {
       inputSchema: {
         sobject: z.string().min(1),
         fields: z.record(z.unknown()),
+        dryRun: z.boolean().optional(),
       },
     },
-    async ({ sobject, fields }) => {
+    async ({ sobject, fields, dryRun }) => {
+      ensureWriteAllowed(config, dryRun);
+      if (dryRun) {
+        return jsonResult({
+          dryRun: true,
+          action: "create_record",
+          target: { sobject },
+          fields,
+        });
+      }
       const conn = await getSalesforceConnection(config);
       const result = await conn.create(sobject as never, fields as never);
       return jsonResult(result);
@@ -83,9 +93,19 @@ export function createMcpServer(config: AppConfig): McpServer {
         sobject: z.string().min(1),
         id: z.string().min(1),
         fields: z.record(z.unknown()),
+        dryRun: z.boolean().optional(),
       },
     },
-    async ({ sobject, id, fields }) => {
+    async ({ sobject, id, fields, dryRun }) => {
+      ensureWriteAllowed(config, dryRun);
+      if (dryRun) {
+        return jsonResult({
+          dryRun: true,
+          action: "update_record",
+          target: { sobject, id },
+          fields,
+        });
+      }
       const conn = await getSalesforceConnection(config);
       const result = await conn.update(sobject as never, { Id: id, ...fields } as never);
       return jsonResult(result);
@@ -100,9 +120,19 @@ export function createMcpServer(config: AppConfig): McpServer {
         sobject: z.string().min(1),
         extIdField: z.string().min(1),
         rec: z.record(z.unknown()),
+        dryRun: z.boolean().optional(),
       },
     },
-    async ({ sobject, extIdField, rec }) => {
+    async ({ sobject, extIdField, rec, dryRun }) => {
+      ensureWriteAllowed(config, dryRun);
+      if (dryRun) {
+        return jsonResult({
+          dryRun: true,
+          action: "upsert_record",
+          target: { sobject, extIdField },
+          record: rec,
+        });
+      }
       const conn = await getSalesforceConnection(config);
       const result = await conn.sobject(sobject).upsert(rec, extIdField);
       return jsonResult(result);
@@ -191,6 +221,7 @@ export function createMcpServer(config: AppConfig): McpServer {
             "LongTextArea",
             "Number",
             "Date",
+            "DateTime",
             "Checkbox",
             "Url",
             "Picklist",
@@ -306,6 +337,12 @@ export function createMcpServer(config: AppConfig): McpServer {
   );
 
   return server;
+}
+
+function ensureWriteAllowed(config: AppConfig, dryRun?: boolean): void {
+  if (!config.allowWrite && !dryRun) {
+    throw new Error("Record writes are disabled. Set SF_ALLOW_WRITE=1 or use dryRun.");
+  }
 }
 
 function jsonResult(value: unknown) {
